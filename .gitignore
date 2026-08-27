@@ -1,0 +1,15 @@
+.DS_Store
+.build/
+.derived/
+DerivedData/
+Tuist/.build/
+*.xcresult
+*.xcodeproj/
+*.xcworkspace/
+!Project.swift
+!Workspace.swift
+xcuserdata/
+.swiftpm/
+build-artifacts/
+local-state/
+
