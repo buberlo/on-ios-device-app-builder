@@ -1,0 +1,47 @@
+import Foundation
+import XCTest
+@testable import BuilderHost
+
+final class WorkspaceServiceTests: XCTestCase {
+    func testCreatesAndReloadsProjectInsideControlledRoot() async throws {
+        let root = uniqueTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let service = try WorkspaceService(rootURL: root)
+
+        let project = try await service.createProject(
+            name: "Focus Timer",
+            bundleIdentifier: "dev.example.focus-timer",
+            prompt: "A calm focus timer"
+        )
+        let projects = try await service.projects()
+        let projectURL = try await service.projectURL(for: project)
+
+        XCTAssertEqual(projects.map(\.id), [project.id])
+        XCTAssertEqual(projects.first?.name, project.name)
+        XCTAssertEqual(projects.first?.bundleIdentifier, project.bundleIdentifier)
+        XCTAssertTrue(projectURL.path.hasPrefix(root.path + "/"))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: projectURL.appending(path: "project.json").path))
+    }
+
+    func testRejectsInvalidBundleIdentifier() async throws {
+        let root = uniqueTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let service = try WorkspaceService(rootURL: root)
+
+        do {
+            _ = try await service.createProject(name: "Bad", bundleIdentifier: "not valid", prompt: "")
+            XCTFail("Expected invalid bundle identifier")
+        } catch let error as WorkspaceError {
+            XCTAssertEqual(error, .invalidBundleIdentifier)
+        }
+    }
+
+    func testSlugRemovesPathCharacters() {
+        XCTAssertEqual(WorkspaceService.slug(from: "../../Über Cool App"), "uber-cool-app")
+    }
+
+    private func uniqueTemporaryDirectory() -> URL {
+        FileManager.default.temporaryDirectory
+            .appending(path: "BuilderHostTests-\(UUID().uuidString)", directoryHint: .isDirectory)
+    }
+}

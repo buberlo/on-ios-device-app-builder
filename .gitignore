@@ -1,7 +1,9 @@
 .DS_Store
 .build/
 .derived/
+.derived-*/
 DerivedData/
+Derived/
 Tuist/.build/
 *.xcresult
 *.xcodeproj/
@@ -12,4 +14,3 @@ xcuserdata/
 .swiftpm/
 build-artifacts/
 local-state/
-
