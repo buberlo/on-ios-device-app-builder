@@ -35,7 +35,10 @@ actor PrototypeBuildPipeline {
         try prepareProjectIfNeeded(project, at: projectURL)
 
         await progress(.init(phase: .generating, message: "Generating Xcode workspace", fraction: 0.2))
-        let generation = try await runner.run(.generateProject(executable: tuistURL, directory: projectURL))
+        let generation = try await runner.run(.generateProject(executable: tuistURL, directory: projectURL)) { line in
+            guard let message = Self.progressMessage(from: line, phase: .generating) else { return }
+            await progress(.init(phase: .generating, message: message, fraction: 0.3))
+        }
         guard generation.succeeded else {
             throw BuildPipelineError.generationFailed(Self.safeSummary(generation.text))
         }
@@ -48,7 +51,10 @@ actor PrototypeBuildPipeline {
                 scheme: PrototypeGenerator.schemeName,
                 teamID: developmentTeamID
             )
-        )
+        ) { line in
+            guard let message = Self.progressMessage(from: line, phase: .building) else { return }
+            await progress(.init(phase: .building, message: message, fraction: 0.62))
+        }
         guard build.succeeded else {
             throw BuildPipelineError.buildFailed(Self.safeSummary(build.text))
         }
@@ -136,6 +142,33 @@ actor PrototypeBuildPipeline {
             .map(String.init)
             .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
         return String((lines.suffix(6).joined(separator: "\n")).prefix(1_200))
+    }
+
+    static func progressMessage(from rawLine: String, phase: PrototypeBuildProgress.Phase) -> String? {
+        let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !line.isEmpty else { return nil }
+
+        switch phase {
+        case .generating:
+            let lowercased = line.lowercased()
+            guard lowercased.contains("generat")
+                    || lowercased.contains("load")
+                    || lowercased.contains("success")
+                    || lowercased.contains("warning")
+                    || lowercased.contains("error")
+            else { return nil }
+        case .building:
+            let meaningfulMarkers = [
+                "Compile", "SwiftCompile", "Ld ", "Link", "CodeSign", "Sign",
+                "ProcessInfoPlist", "Copy", "Generate", "warning:", "error:",
+                "BUILD SUCCEEDED", "BUILD FAILED",
+            ]
+            guard meaningfulMarkers.contains(where: line.contains) else { return nil }
+        default:
+            return nil
+        }
+
+        return String(line.prefix(240))
     }
 }
 

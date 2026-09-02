@@ -51,6 +51,7 @@ final class PhoneBuilderUITests: XCTestCase {
         XCTAssertTrue(userMessage.waitForExistence(timeout: 2))
 
         app.buttons["project.build"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["project.run-log"].waitForExistence(timeout: 3))
         app.buttons["Activity"].firstMatch.tap()
 
         XCTAssertTrue(app.staticTexts["Build succeeded"].waitForExistence(timeout: 3))
@@ -71,6 +72,25 @@ final class PhoneBuilderUITests: XCTestCase {
         app.alerts["Connect your Mac first"].buttons["OK"].tap()
         XCTAssertTrue(nameField.exists)
         XCTAssertEqual(nameField.value as? String, "Offline App")
+    }
+
+    @MainActor
+    func testDeleteProjectWithConfirmation() {
+        let app = launchApp()
+        connectToTestMac(in: app)
+        app.buttons["Create project"].tap()
+        app.textFields["project.name"].typeText("Delete Me")
+        app.buttons["project.create"].tap()
+
+        let project = app.staticTexts["Delete Me"]
+        XCTAssertTrue(project.waitForExistence(timeout: 3))
+        project.swipeLeft()
+        XCTAssertTrue(app.buttons["Delete"].waitForExistence(timeout: 3))
+        app.buttons["Delete"].tap()
+        XCTAssertTrue(app.alerts["Delete Delete Me?"].waitForExistence(timeout: 3))
+        app.alerts["Delete Delete Me?"].buttons["Delete"].tap()
+
+        XCTAssertTrue(app.staticTexts["No projects yet"].waitForExistence(timeout: 3))
     }
 
     @MainActor

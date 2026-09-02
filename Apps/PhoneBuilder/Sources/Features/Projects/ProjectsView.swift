@@ -3,6 +3,7 @@ import SwiftUI
 @MainActor
 struct ProjectsView: View {
     let store: PhoneBuilderStore
+    @State private var projectToDelete: AppProject?
 
     var body: some View {
         Group {
@@ -35,6 +36,17 @@ struct ProjectsView: View {
                                 ProjectRow(project: project)
                             }
                             .accessibilityIdentifier("project.row.\(project.id.uuidString)")
+                            .swipeActions {
+                                Button("Delete", systemImage: "trash", role: .destructive) {
+                                    projectToDelete = project
+                                }
+                                .accessibilityIdentifier("project.delete.\(project.id.uuidString)")
+                            }
+                            .contextMenu {
+                                Button("Delete project", systemImage: "trash", role: .destructive) {
+                                    projectToDelete = project
+                                }
+                            }
                         }
                     }
                 }
@@ -52,6 +64,16 @@ struct ProjectsView: View {
                 }
                 .accessibilityIdentifier("projects.add")
             }
+        }
+        .alert(item: $projectToDelete) { project in
+            Alert(
+                title: Text("Delete \(project.name)?"),
+                message: Text("This permanently removes the project source and its local build artifacts from the Mac."),
+                primaryButton: .destructive(Text("Delete")) {
+                    store.deleteProject(project.id)
+                },
+                secondaryButton: .cancel()
+            )
         }
     }
 }

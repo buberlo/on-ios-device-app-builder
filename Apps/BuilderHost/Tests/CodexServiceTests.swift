@@ -39,4 +39,22 @@ final class CodexServiceTests: XCTestCase {
         XCTAssertEqual(events[1].message, "Implemented the timer.")
         XCTAssertEqual(events[2].message, "Authentication required")
     }
+
+    func testParsesSingleStreamingStatusLine() {
+        let event = CodexJSONLParser.parseLine(#"{"type":"turn.started","message":"Inspecting project"}"#)
+
+        XCTAssertEqual(event, CodexRunEvent(kind: .status, message: "Inspecting project"))
+    }
+
+    func testBuildProgressKeepsUsefulLinesAndDropsNoise() {
+        XCTAssertEqual(
+            PrototypeBuildPipeline.progressMessage(from: "SwiftCompile normal arm64 View.swift", phase: .building),
+            "SwiftCompile normal arm64 View.swift"
+        )
+        XCTAssertNil(PrototypeBuildPipeline.progressMessage(from: "cd /private/project", phase: .building))
+        XCTAssertEqual(
+            PrototypeBuildPipeline.progressMessage(from: "Generating project", phase: .generating),
+            "Generating project"
+        )
+    }
 }

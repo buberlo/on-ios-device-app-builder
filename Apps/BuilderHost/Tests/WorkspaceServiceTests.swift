@@ -36,6 +36,23 @@ final class WorkspaceServiceTests: XCTestCase {
         }
     }
 
+    func testDeletesOnlyTheRequestedProjectDirectory() async throws {
+        let root = uniqueTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let service = try WorkspaceService(rootURL: root)
+        let first = try await service.createProject(name: "First", bundleIdentifier: "dev.example.first", prompt: "")
+        let second = try await service.createProject(name: "Second", bundleIdentifier: "dev.example.second", prompt: "")
+        let firstURL = try await service.projectURL(for: first)
+        let secondURL = try await service.projectURL(for: second)
+
+        try await service.deleteProject(id: first.id)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: firstURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: secondURL.path))
+        let remainingProjects = try await service.projects()
+        XCTAssertEqual(remainingProjects.map(\.id), [second.id])
+    }
+
     func testSlugRemovesPathCharacters() {
         XCTAssertEqual(WorkspaceService.slug(from: "../../Über Cool App"), "uber-cool-app")
     }

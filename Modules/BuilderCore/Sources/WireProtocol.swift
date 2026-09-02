@@ -3,6 +3,7 @@ import Foundation
 public enum ClientCommand: Codable, Hashable, Sendable {
     case requestSnapshot
     case createProject(CreateProjectRequest)
+    case deleteProject(UUID)
     case sendPrompt(PromptRequest)
     case buildProject(UUID)
     case installProject(InstallProjectRequest)
@@ -12,6 +13,7 @@ public enum ClientCommand: Codable, Hashable, Sendable {
 public enum HostEvent: Codable, Hashable, Sendable {
     case snapshot(HostSnapshot)
     case projectCreated(ProjectSummary)
+    case projectDeleted(UUID)
     case chatMessage(ChatMessage)
     case runState(ProjectRunUpdate)
     case buildEvent(BuildEvent)
@@ -19,7 +21,7 @@ public enum HostEvent: Codable, Hashable, Sendable {
 }
 
 public enum BuilderWireProtocol {
-    public static let version = 2
+    public static let version = 3
     public static let serviceType = "phonebuilder"
 }
 

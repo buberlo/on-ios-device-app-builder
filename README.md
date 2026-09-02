@@ -11,6 +11,7 @@ The phone is the control surface. The Mac remains the build machine and the secu
 3. Connect to the discovered Mac and review Xcode, signing, Codex, and device checks.
 4. Create a project, describe the app in chat, and follow the streamed run timeline.
 5. Build the generated SwiftUI prototype, then choose a compatible paired iPhone or iPad for installation.
+6. Remove old projects from the Projects list with a confirmed swipe-to-delete action.
 
 The apps also include a deterministic demo mode so navigation and the complete project/chat/build state machine can be tested without invoking Codex.
 
@@ -55,6 +56,8 @@ Open `OnDeviceAppBuilder.xcworkspace` for signing and physical-device runs.
 - Installation is a separate typed action, never an implicit side effect of a prompt.
 - Every installation request contains the selected device ID; the host never silently picks another device.
 - Devices newer than the selected Xcode major version remain visible but are disabled with a compatibility warning.
+- Codex, Tuist, and Xcode emit filtered live progress into the project log and Activity timeline.
+- Project deletion is a typed operation, requires confirmation on the device, and is restricted to the host-owned workspace root.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the trust boundary and first vertical slice.
 

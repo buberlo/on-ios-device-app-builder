@@ -117,6 +117,30 @@ struct PhoneBuilderStoreTests {
         #expect(store.project(id: projectID)?.runState == .idle)
     }
 
+    @Test("Deleting a project clears its presentation data")
+    func deleteProject() throws {
+        let store = makeProjectStore()
+        let projectID = try #require(store.projects.first?.id)
+
+        store.deleteProject(projectID)
+
+        #expect(store.project(id: projectID) == nil)
+        #expect(store.messages(for: projectID).isEmpty)
+        #expect(store.events(for: projectID).isEmpty)
+    }
+
+    @Test("Deleting while disconnected preserves the project and shows an error")
+    func deleteProjectRequiresMacConnection() throws {
+        let store = makeProjectStore()
+        let projectID = try #require(store.projects.first?.id)
+        store.disconnect()
+
+        store.deleteProject(projectID)
+
+        #expect(store.project(id: projectID) != nil)
+        #expect(store.alert?.title == "Connect your Mac first")
+    }
+
     private func makeProjectStore() -> PhoneBuilderStore {
         let store = PhoneBuilderStore(configuration: .uiTesting)
         connect(store)

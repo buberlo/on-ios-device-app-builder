@@ -120,7 +120,10 @@ struct CommandInvocation: Sendable {
 actor AllowlistedCommandRunner {
     private var activeProcess: Process?
 
-    func run(_ command: AllowedCommand) async throws -> CommandOutput {
+    func run(
+        _ command: AllowedCommand,
+        onLine: (@Sendable (String) async -> Void)? = nil
+    ) async throws -> CommandOutput {
         let invocation = command.invocation
         guard FileManager.default.isExecutableFile(atPath: invocation.executable.path) else {
             throw CommandRunnerError.executableUnavailable(invocation.executable.path)
@@ -152,7 +155,30 @@ actor AllowlistedCommandRunner {
         return try await withTaskCancellationHandler {
             try Task.checkCancellation()
             let readTask = Task.detached(priority: .utility) {
-                outputPipe.fileHandleForReading.readDataToEndOfFile()
+                let handle = outputPipe.fileHandleForReading
+                var collected = Data()
+                var pending = Data()
+
+                while let chunk = try? handle.read(upToCount: 4_096), !chunk.isEmpty {
+                    collected.append(chunk)
+                    pending.append(chunk)
+
+                    while let newline = pending.firstIndex(of: 0x0A) {
+                        let lineData = Data(pending[..<newline])
+                        pending.removeSubrange(pending.startIndex...newline)
+                        let line = String(decoding: lineData, as: UTF8.self)
+                            .trimmingCharacters(in: .newlines)
+                        if !line.isEmpty, let onLine {
+                            await onLine(line)
+                        }
+                    }
+                }
+
+                if !pending.isEmpty, let onLine {
+                    let line = String(decoding: pending, as: UTF8.self)
+                    if !line.isEmpty { await onLine(line) }
+                }
+                return collected
             }
             let status: Int32 = try await withCheckedThrowingContinuation { continuation in
                 process.terminationHandler = { terminatedProcess in

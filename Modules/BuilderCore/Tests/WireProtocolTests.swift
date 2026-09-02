@@ -66,6 +66,22 @@ final class WireProtocolTests: XCTestCase {
         XCTAssertEqual(decoded.payload, command)
     }
 
+    func testProjectDeletionRoundTrips() throws {
+        let projectID = UUID(uuidString: "AEEAD499-A584-4875-A065-D7F7B4CBFF75")!
+
+        let command = try WireCodec.decode(
+            ClientCommand.self,
+            from: WireCodec.encode(ClientCommand.deleteProject(projectID))
+        )
+        let event = try WireCodec.decode(
+            HostEvent.self,
+            from: WireCodec.encode(HostEvent.projectDeleted(projectID))
+        )
+
+        XCTAssertEqual(command.payload, .deleteProject(projectID))
+        XCTAssertEqual(event.payload, .projectDeleted(projectID))
+    }
+
     func testUnsupportedVersionIsRejected() throws {
         let envelope = WireEnvelope(
             version: BuilderWireProtocol.version + 1,

@@ -28,7 +28,11 @@ struct CodexService: Sendable {
         self.toolLocator = toolLocator
     }
 
-    func run(prompt: String, in projectURL: URL) async throws -> CodexRunResult {
+    func run(
+        prompt: String,
+        in projectURL: URL,
+        onEvent: (@Sendable (CodexRunEvent) async -> Void)? = nil
+    ) async throws -> CodexRunResult {
         guard let executable = toolLocator.codexURL() else {
             throw CodexServiceError.unavailable
         }
@@ -44,7 +48,10 @@ struct CodexService: Sendable {
         """
         let output = try await runner.run(
             .codexExec(executable: executable, directory: projectURL.standardizedFileURL, prompt: commandPrompt)
-        )
+        ) { line in
+            guard let event = CodexJSONLParser.parseLine(line) else { return }
+            await onEvent?(event)
+        }
         let events = CodexJSONLParser.parse(output.text)
         guard output.succeeded else {
             let reason = events.last(where: { $0.kind == .error })?.message
@@ -66,31 +73,33 @@ struct CodexService: Sendable {
 
 enum CodexJSONLParser {
     static func parse(_ text: String) -> [CodexRunEvent] {
-        text.split(whereSeparator: \Character.isNewline).compactMap { line in
-            guard
-                let data = String(line).data(using: .utf8),
-                let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-            else { return nil }
+        text.split(whereSeparator: \Character.isNewline).compactMap { parseLine(String($0)) }
+    }
 
-            let type = object["type"] as? String ?? ""
-            if type.localizedCaseInsensitiveContains("error") {
-                return CodexRunEvent(kind: .error, message: extractMessage(from: object) ?? "Codex reported an error.")
-            }
-            if let item = object["item"] as? [String: Any],
-               let itemType = item["type"] as? String,
-               itemType == "agent_message",
-               let text = item["text"] as? String,
-               !text.isEmpty {
-                return CodexRunEvent(kind: .assistantMessage, message: String(text.prefix(2_000)))
-            }
-            if let message = extractMessage(from: object), !message.isEmpty {
-                return CodexRunEvent(kind: .status, message: String(message.prefix(500)))
-            }
-            if !type.isEmpty {
-                return CodexRunEvent(kind: .status, message: type.replacingOccurrences(of: ".", with: " ").capitalized)
-            }
-            return nil
+    static func parseLine(_ line: String) -> CodexRunEvent? {
+        guard
+            let data = line.data(using: .utf8),
+            let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return nil }
+
+        let type = object["type"] as? String ?? ""
+        if type.localizedCaseInsensitiveContains("error") {
+            return CodexRunEvent(kind: .error, message: extractMessage(from: object) ?? "Codex reported an error.")
         }
+        if let item = object["item"] as? [String: Any],
+           let itemType = item["type"] as? String,
+           itemType == "agent_message",
+           let text = item["text"] as? String,
+           !text.isEmpty {
+            return CodexRunEvent(kind: .assistantMessage, message: String(text.prefix(2_000)))
+        }
+        if let message = extractMessage(from: object), !message.isEmpty {
+            return CodexRunEvent(kind: .status, message: String(message.prefix(500)))
+        }
+        if !type.isEmpty {
+            return CodexRunEvent(kind: .status, message: type.replacingOccurrences(of: ".", with: " ").capitalized)
+        }
+        return nil
     }
 
     private static func extractMessage(from object: [String: Any]) -> String? {

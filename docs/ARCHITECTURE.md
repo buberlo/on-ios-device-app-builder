@@ -14,6 +14,7 @@ The Mac is authoritative. The phone caches presentation state only and can repla
 - Provider and Apple credentials never appear in protocol payloads.
 - Requests are typed; there is no arbitrary shell request.
 - Workspaces are created below one application-owned root.
+- Deletion resolves a known project ID and revalidates its path before removing that one workspace directory.
 - Installation is a distinct, user-approved action.
 - The host publishes all paired iPhone and iPad targets with readiness metadata. The phone sends the exact selected device ID with each install request.
 
@@ -31,6 +32,7 @@ The host exposes operations, not commands:
 
 - diagnose the supported toolchain;
 - create a project inside the owned workspace root;
+- delete a known project and its build artifacts from that root;
 - ask Codex to edit that project;
 - generate and build the known Tuist project;
 - install a specific built `.app` on a paired device; and
@@ -47,6 +49,7 @@ The first end-to-end workflow is intentionally narrow:
 3. Create a SwiftUI prototype project from the phone.
 4. Submit an idea and receive streamed plan/build events.
 5. Review the result, choose a compatible iPhone or iPad, and explicitly request installation.
+6. Confirm deletion of obsolete projects from the project list.
 
 ## Post-MVP hardening
 

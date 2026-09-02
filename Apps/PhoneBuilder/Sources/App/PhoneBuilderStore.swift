@@ -388,6 +388,8 @@ final class PhoneBuilderStore {
                 title: "Project created",
                 detail: "\(project.name) was created on the Mac."
             )
+        case let .projectDeleted(projectID):
+            removeProjectFromPresentation(projectID)
         case let .chatMessage(message):
             appendMessage(AppChatMessage(message), deduplicateEcho: true)
         case let .runState(update):
@@ -487,6 +489,31 @@ final class PhoneBuilderStore {
         }
     }
 
+    func deleteProject(_ projectID: UUID) {
+        guard let project = project(id: projectID) else { return }
+        guard !project.runState.isRunning else {
+            alert = AppAlert(title: "Project is busy", message: "Cancel the active run before deleting this project.")
+            return
+        }
+        guard setup.connectionState == .connected else {
+            alert = AppAlert(title: "Connect your Mac first", message: "The project is stored on the Mac and cannot be deleted while disconnected.")
+            return
+        }
+
+        if configuration == .live {
+            send(.deleteProject(projectID), errorTitle: "Could not delete project")
+            return
+        }
+
+        removeProjectFromPresentation(projectID)
+    }
+
+    private func removeProjectFromPresentation(_ projectID: UUID) {
+        projects.removeAll { $0.id == projectID }
+        messagesByProject[projectID] = nil
+        activity.removeAll { $0.projectID == projectID }
+    }
+
     private func setRunState(_ state: AppRunState, projectID: UUID) {
         guard let index = projects.firstIndex(where: { $0.id == projectID }) else { return }
         projects[index].runState = state
@@ -527,6 +554,9 @@ final class PhoneBuilderStore {
     private func appendEvent(_ event: AppBuildEvent) {
         guard !activity.contains(where: { $0.id == event.id }) else { return }
         activity.append(event)
+        if activity.count > 500 {
+            activity.removeFirst(activity.count - 500)
+        }
     }
 
     private func bootstrapUITesting() {

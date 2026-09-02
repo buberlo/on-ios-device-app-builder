@@ -70,6 +70,11 @@ struct ProjectDetailView: View {
                 LazyVStack(spacing: 12) {
                     ProjectStatusHeader(project: project, eventCount: store.events(for: projectID).count)
 
+                    let recentEvents = Array(store.events(for: projectID).suffix(6))
+                    if !recentEvents.isEmpty {
+                        ProjectRunLog(events: recentEvents)
+                    }
+
                     if store.messages(for: projectID).isEmpty {
                         PromptSuggestions { suggestion in
                             draft = suggestion
@@ -179,6 +184,33 @@ private struct PromptSuggestions: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 24)
+    }
+}
+
+private struct ProjectRunLog: View {
+    let events: [AppBuildEvent]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Live progress", systemImage: "text.alignleft")
+                .font(.headline)
+
+            ForEach(events) { event in
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(event.timestamp, format: .dateTime.hour().minute().second())
+                        .foregroundStyle(.tertiary)
+                    Text(event.detail)
+                        .foregroundStyle(event.kind == .error ? .red : .secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .font(.caption.monospaced())
+                .accessibilityElement(children: .combine)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(.background, in: .rect(cornerRadius: 16))
+        .accessibilityIdentifier("project.run-log")
     }
 }
 

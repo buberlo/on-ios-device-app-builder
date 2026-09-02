@@ -84,6 +84,15 @@ actor WorkspaceService {
         try persist(record)
     }
 
+    func deleteProject(id: UUID) throws {
+        let record = try project(id: id)
+        let directory = try projectURL(for: record)
+        guard fileManager.fileExists(atPath: directory.path) else {
+            throw WorkspaceError.projectNotFound
+        }
+        try fileManager.removeItem(at: directory)
+    }
+
     func projectURL(for record: HostProjectRecord) throws -> URL {
         let resolvedRoot = rootURL.resolvingSymlinksInPath().standardizedFileURL
         let candidate = resolvedRoot

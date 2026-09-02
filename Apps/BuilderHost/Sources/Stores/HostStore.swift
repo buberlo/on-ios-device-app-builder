@@ -126,6 +126,8 @@ final class HostStore {
             }
         case let .createProject(request):
             createProject(request, for: peer)
+        case let .deleteProject(projectID):
+            deleteProject(projectID, for: peer)
         case let .sendPrompt(request):
             planPrompt(request, for: peer)
         case let .buildProject(projectID):
@@ -170,6 +172,34 @@ final class HostStore {
         }
     }
 
+    private func deleteProject(_ projectID: UUID, for peer: NearbyPeer) {
+        guard runTasks[projectID] == nil else {
+            sendError(
+                code: "run_active",
+                message: "Cancel the active run before deleting this project.",
+                projectID: projectID,
+                to: peer
+            )
+            return
+        }
+
+        let task = Task { [weak self] in
+            guard let self else { return }
+            defer { self.runTasks[projectID] = nil }
+            do {
+                let projectName = projects.first(where: { $0.id == projectID })?.name ?? "Project"
+                try await workspace.deleteProject(id: projectID)
+                projects.removeAll { $0.id == projectID }
+                addActivity(.success, "Deleted \(projectName)")
+                send(.projectDeleted(projectID), to: peer)
+                sendSnapshot(to: peer)
+            } catch {
+                sendError(code: "delete_failed", message: error.localizedDescription, projectID: projectID, to: peer)
+            }
+        }
+        runTasks[projectID] = task
+    }
+
     private func planPrompt(_ request: PromptRequest, for peer: NearbyPeer) {
         guard request.isValid else {
             sendError(code: "invalid_prompt", message: "Prompt cannot be empty.", projectID: request.projectID, to: peer)
@@ -199,7 +229,17 @@ final class HostStore {
                 let url = try await workspace.projectURL(for: record)
                 let assistantText: String
                 do {
-                    let result = try await codex.run(prompt: trimmed, in: url)
+                    let result = try await codex.run(prompt: trimmed, in: url) { [weak self] event in
+                        guard event.kind != .assistantMessage else { return }
+                        await MainActor.run {
+                            self?.publishLog(
+                                event.message,
+                                projectID: request.projectID,
+                                phase: .planning,
+                                peer: peer
+                            )
+                        }
+                    }
                     assistantText = result.assistantText ?? "Codex updated the prototype source. It is ready to build."
                 } catch {
                     try generator.generate(record, at: url)
@@ -363,6 +403,23 @@ final class HostStore {
         addActivity(progress.phase == .installing || progress.phase == .launching ? .install : .build, progress.message)
     }
 
+    private func publishLog(_ message: String, projectID: UUID, phase: RunState, peer: NearbyPeer) {
+        let safeMessage = String(message.trimmingCharacters(in: .whitespacesAndNewlines).prefix(240))
+        guard !safeMessage.isEmpty else { return }
+        send(
+            .buildEvent(
+                BuildEvent(
+                    projectID: projectID,
+                    kind: .log,
+                    phase: phase,
+                    message: safeMessage
+                )
+            ),
+            to: peer
+        )
+        addActivity(phase == .planning ? .plan : .build, safeMessage)
+    }
+
     private func sendSnapshot(to peer: NearbyPeer) {
         let snapshot = HostSnapshot(
             hostName: Host.current().localizedName ?? ProcessInfo.processInfo.hostName,
@@ -445,6 +502,7 @@ private extension ClientCommand {
         switch self {
         case .requestSnapshot: "requested setup snapshot"
         case .createProject: "requested a new project"
+        case .deleteProject: "requested project deletion"
         case .sendPrompt: "sent a prompt"
         case .buildProject: "requested a build"
         case .installProject: "requested installation"
