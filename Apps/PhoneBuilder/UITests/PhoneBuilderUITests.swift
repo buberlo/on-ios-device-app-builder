@@ -25,6 +25,7 @@ final class PhoneBuilderUITests: XCTestCase {
     @MainActor
     func testCreateChatAndBuildFlow() {
         let app = launchApp()
+        connectToTestMac(in: app)
         let createProject = app.buttons["Create project"]
         XCTAssertTrue(createProject.waitForExistence(timeout: 5))
         createProject.tap()
@@ -54,6 +55,22 @@ final class PhoneBuilderUITests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts["Build succeeded"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.staticTexts["Building"].exists)
+    }
+
+    @MainActor
+    func testDisconnectedCreationShowsErrorAndKeepsDraft() {
+        let app = launchApp()
+        app.buttons["Create project"].tap()
+
+        let nameField = app.textFields["project.name"]
+        XCTAssertTrue(nameField.waitForExistence(timeout: 3))
+        nameField.typeText("Offline App")
+        app.buttons["project.create"].tap()
+
+        XCTAssertTrue(app.alerts["Connect your Mac first"].waitForExistence(timeout: 3))
+        app.alerts["Connect your Mac first"].buttons["OK"].tap()
+        XCTAssertTrue(nameField.exists)
+        XCTAssertEqual(nameField.value as? String, "Offline App")
     }
 
     @MainActor
@@ -96,5 +113,13 @@ final class PhoneBuilderUITests: XCTestCase {
         app.launchArguments = ["-ui-testing"]
         app.launch()
         return app
+    }
+
+    @MainActor
+    private func connectToTestMac(in app: XCUIApplication) {
+        app.buttons["Setup"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["setup.connect"].waitForExistence(timeout: 3))
+        app.buttons["setup.connect"].tap()
+        app.buttons["Projects"].firstMatch.tap()
     }
 }

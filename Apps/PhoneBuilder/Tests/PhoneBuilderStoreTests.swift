@@ -15,6 +15,7 @@ struct PhoneBuilderStoreTests {
     @Test("Creating a project updates projects and activity")
     func createProject() {
         let store = PhoneBuilderStore(configuration: .uiTesting)
+        connect(store)
 
         store.createProject(
             name: "Focus Timer",
@@ -26,6 +27,24 @@ struct PhoneBuilderStoreTests {
         #expect(store.projects[0].name == "Focus Timer")
         #expect(store.messages(for: store.projects[0].id).count == 1)
         #expect(store.activity.last?.kind == .project)
+    }
+
+    @Test("Creating while disconnected returns a visible error and changes nothing")
+    func createProjectRequiresMacConnection() throws {
+        let store = PhoneBuilderStore(configuration: .uiTesting)
+
+        let result = store.createProject(
+            name: "Offline App",
+            bundleIdentifier: "dev.example.offline-app",
+            prompt: "Keep this draft"
+        )
+
+        guard case let .failure(error) = result else {
+            Issue.record("Expected project creation to fail while disconnected")
+            return
+        }
+        #expect(error.title == "Connect your Mac first")
+        #expect(store.projects.isEmpty)
     }
 
     @Test("A prompt adds both sides of the conversation")
@@ -100,11 +119,17 @@ struct PhoneBuilderStoreTests {
 
     private func makeProjectStore() -> PhoneBuilderStore {
         let store = PhoneBuilderStore(configuration: .uiTesting)
+        connect(store)
         store.createProject(
             name: "Focus Timer",
             bundleIdentifier: "dev.example.focus-timer",
             prompt: ""
         )
         return store
+    }
+
+    private func connect(_ store: PhoneBuilderStore) {
+        guard let mac = store.setup.discoveredMacs.first else { return }
+        store.connect(to: mac)
     }
 }

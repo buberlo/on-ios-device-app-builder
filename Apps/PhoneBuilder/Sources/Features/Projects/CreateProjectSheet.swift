@@ -9,6 +9,7 @@ struct CreateProjectSheet: View {
     @State private var name = ""
     @State private var bundleIdentifier = "dev.example."
     @State private var prompt = ""
+    @State private var submissionError: AppAlert?
     @FocusState private var focusedField: Field?
 
     private enum Field: Hashable {
@@ -20,6 +21,14 @@ struct CreateProjectSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                if store.setup.connectionState != .connected {
+                    Section {
+                        Label("Connect to Builder Host before creating the project.", systemImage: "macbook.and.iphone")
+                            .foregroundStyle(.orange)
+                            .accessibilityIdentifier("project.connection-required")
+                    }
+                }
+
                 Section("App identity") {
                     TextField("App name", text: $name)
                         .textContentType(.name)
@@ -61,12 +70,17 @@ struct CreateProjectSheet: View {
 
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Create") {
-                        store.createProject(
+                        let result = store.createProject(
                             name: name.trimmingCharacters(in: .whitespacesAndNewlines),
                             bundleIdentifier: bundleIdentifier.trimmingCharacters(in: .whitespacesAndNewlines),
                             prompt: prompt.trimmingCharacters(in: .whitespacesAndNewlines)
                         )
-                        dismiss()
+                        switch result {
+                        case .success:
+                            dismiss()
+                        case let .failure(error):
+                            submissionError = error
+                        }
                     }
                     .fontWeight(.semibold)
                     .disabled(!isValid)
@@ -81,6 +95,13 @@ struct CreateProjectSheet: View {
                     return
                 }
                 bundleIdentifier = "dev.example.\(PhoneBuilderStore.bundleComponent(from: newName))"
+            }
+            .alert(item: $submissionError) { error in
+                Alert(
+                    title: Text(error.title),
+                    message: Text(error.message),
+                    dismissButton: .default(Text("OK"))
+                )
             }
         }
         .presentationDetents([.medium, .large])

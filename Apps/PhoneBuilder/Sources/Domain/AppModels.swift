@@ -192,7 +192,7 @@ struct AppSetupState: Hashable, Sendable {
     }
 }
 
-struct AppAlert: Identifiable, Sendable {
+struct AppAlert: Error, Identifiable, Sendable {
     let id = UUID()
     let title: String
     let message: String

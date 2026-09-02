@@ -146,23 +146,47 @@ final class PhoneBuilderStore {
         send(.requestSnapshot, errorTitle: "Could not refresh")
     }
 
-    func createProject(name: String, bundleIdentifier: String, prompt: String) {
+    @discardableResult
+    func createProject(name: String, bundleIdentifier: String, prompt: String) -> Result<Void, AppAlert> {
         let request = CreateProjectRequest(
             name: name,
             bundleIdentifier: bundleIdentifier,
             prompt: prompt
         )
         guard request.isValid else {
-            alert = AppAlert(
-                title: "Check the project details",
-                message: request.validationIssues.joined(separator: "\n")
+            return .failure(
+                AppAlert(
+                    title: "Check the project details",
+                    message: request.validationIssues.joined(separator: "\n")
+                )
             )
-            return
+        }
+
+        guard setup.connectionState == .connected else {
+            return .failure(
+                AppAlert(
+                    title: "Connect your Mac first",
+                    message: "Your project details are still here. Open Setup, connect to Builder Host, then try Create again."
+                )
+            )
         }
 
         if configuration == .live {
-            send(.createProject(request), errorTitle: "Could not create project")
-            return
+            guard client.connectionState == .connected, client.connectedHost != nil else {
+                return .failure(
+                    AppAlert(
+                        title: "Mac connection was lost",
+                        message: "Reconnect to Builder Host in Setup, then try Create again."
+                    )
+                )
+            }
+            if let transmissionError = transmissionError(
+                for: .createProject(request),
+                title: "Could not create project"
+            ) {
+                return .failure(transmissionError)
+            }
+            return .success(())
         }
 
         let project = AppProject(
@@ -193,6 +217,7 @@ final class PhoneBuilderStore {
         if !request.prompt.isEmpty {
             Task { await sendPrompt(request.prompt, projectID: project.id) }
         }
+        return .success(())
     }
 
     func sendPrompt(_ text: String, projectID: UUID) async {
@@ -440,10 +465,17 @@ final class PhoneBuilderStore {
     }
 
     private func send(_ command: ClientCommand, errorTitle: String) {
+        if let transmissionError = transmissionError(for: command, title: errorTitle) {
+            alert = transmissionError
+        }
+    }
+
+    private func transmissionError(for command: ClientCommand, title: String) -> AppAlert? {
         do {
             try client.send(command)
+            return nil
         } catch {
-            alert = AppAlert(title: errorTitle, message: error.localizedDescription)
+            return AppAlert(title: title, message: error.localizedDescription)
         }
     }
 
