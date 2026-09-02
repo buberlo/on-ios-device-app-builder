@@ -6,7 +6,7 @@ final class PhoneBuilderUITests: XCTestCase {
         let app = launchApp()
         XCTAssertTrue(app.navigationBars["Projects"].waitForExistence(timeout: 5))
 
-        app.buttons["Setup"].tap()
+        app.buttons["Setup"].firstMatch.tap()
 
         XCTAssertTrue(app.navigationBars["Setup"].waitForExistence(timeout: 2))
         XCTAssertTrue(app.buttons["Connect"].waitForExistence(timeout: 2))
@@ -18,7 +18,7 @@ final class PhoneBuilderUITests: XCTestCase {
             .firstMatch
         XCTAssertTrue(installTarget.waitForExistence(timeout: 2))
 
-        app.buttons["Activity"].tap()
+        app.buttons["Activity"].firstMatch.tap()
         XCTAssertTrue(app.navigationBars["Activity"].waitForExistence(timeout: 2))
     }
 
@@ -50,7 +50,7 @@ final class PhoneBuilderUITests: XCTestCase {
         XCTAssertTrue(userMessage.waitForExistence(timeout: 2))
 
         app.buttons["project.build"].tap()
-        app.buttons["Activity"].tap()
+        app.buttons["Activity"].firstMatch.tap()
 
         XCTAssertTrue(app.staticTexts["Build succeeded"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.staticTexts["Building"].exists)
