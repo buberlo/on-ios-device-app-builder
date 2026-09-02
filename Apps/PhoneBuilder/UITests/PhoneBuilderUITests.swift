@@ -57,6 +57,39 @@ final class PhoneBuilderUITests: XCTestCase {
     }
 
     @MainActor
+    func testChooseIPadAndInstall() {
+        let app = launchApp()
+        app.buttons["Setup"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["setup.connect"].waitForExistence(timeout: 3))
+        app.buttons["setup.connect"].tap()
+
+        let iPad = app.buttons["setup.device.demo-ipad"]
+        let iPhone = app.buttons["setup.device.demo-iphone"]
+        XCTAssertTrue(iPad.waitForExistence(timeout: 3))
+        XCTAssertTrue(iPad.isEnabled)
+        XCTAssertTrue(iPhone.waitForExistence(timeout: 3))
+        XCTAssertFalse(iPhone.isEnabled)
+        iPad.tap()
+
+        app.buttons["Projects"].firstMatch.tap()
+        app.buttons["Create project"].tap()
+        app.textFields["project.name"].typeText("Device Picker")
+        app.buttons["project.create"].tap()
+        app.staticTexts["Device Picker"].tap()
+
+        app.buttons["project.install"].tap()
+        let installOnIPad = app.buttons
+            .matching(NSPredicate(format: "label CONTAINS %@", "Konrad’s iPad"))
+            .firstMatch
+        XCTAssertTrue(installOnIPad.waitForExistence(timeout: 3))
+        installOnIPad.tap()
+
+        app.buttons["Activity"].firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["App installed"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["The latest build is now on Konrad’s iPad"].exists)
+    }
+
+    @MainActor
     private func launchApp() -> XCUIApplication {
         continueAfterFailure = false
         let app = XCUIApplication()

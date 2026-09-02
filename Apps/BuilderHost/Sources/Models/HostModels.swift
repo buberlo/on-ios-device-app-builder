@@ -13,7 +13,7 @@ enum HostCheckKind: String, CaseIterable, Codable, Sendable {
         case .signing: "Development certificate"
         case .tuist: "Tuist"
         case .codex: "Codex CLI"
-        case .device: "Paired iPhone"
+        case .device: "Deployment devices"
         }
     }
 }
@@ -30,14 +30,6 @@ struct HostCheckResult: Identifiable, Codable, Equatable, Sendable {
     let detail: String
 
     var id: String { kind.rawValue }
-}
-
-struct ConnectedIPhone: Identifiable, Codable, Equatable, Sendable {
-    let id: String
-    let name: String
-    let operatingSystem: String
-    let connection: String
-    let developerModeEnabled: Bool
 }
 
 enum HostProjectStatus: String, Codable, Sendable {

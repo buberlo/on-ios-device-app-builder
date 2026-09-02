@@ -15,6 +15,7 @@ The Mac is authoritative. The phone caches presentation state only and can repla
 - Requests are typed; there is no arbitrary shell request.
 - Workspaces are created below one application-owned root.
 - Installation is a distinct, user-approved action.
+- The host publishes all paired iPhone and iPad targets with readiness metadata. The phone sends the exact selected device ID with each install request.
 
 The MVP deliberately separates transport encryption from durable trust. Multipeer Connectivity protects the session in transit. A production release must additionally persist and verify a host identity (for example, a pairing secret or pinned public key) before accepting privileged commands.
 
@@ -45,7 +46,7 @@ The first end-to-end workflow is intentionally narrow:
 2. Receive deterministic Xcode, signing, Codex, and device readiness checks.
 3. Create a SwiftUI prototype project from the phone.
 4. Submit an idea and receive streamed plan/build events.
-5. Review the result and explicitly request installation.
+5. Review the result, choose a compatible iPhone or iPad, and explicitly request installation.
 
 ## Post-MVP hardening
 

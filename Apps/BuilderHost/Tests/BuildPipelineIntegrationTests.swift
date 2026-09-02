@@ -4,9 +4,15 @@ import XCTest
 
 final class BuildPipelineIntegrationTests: XCTestCase {
     func testGeneratedPrototypeBuildsForGenericIOSDevice() async throws {
-        #if !BUILDER_INTEGRATION_TESTS
-        throw XCTSkip("Build with BUILDER_INTEGRATION_TESTS to run the signed Tuist/Xcode integration build.")
+        #if BUILDER_INTEGRATION_TESTS
+        let integrationTestsEnabled = true
+        #else
+        let integrationTestsEnabled = false
         #endif
+        try XCTSkipUnless(
+            integrationTestsEnabled,
+            "Build with BUILDER_INTEGRATION_TESTS to run the signed Tuist/Xcode integration build."
+        )
 
         let root = FileManager.default.temporaryDirectory
             .appending(path: "BuilderHostBuildTests-\(UUID().uuidString)", directoryHint: .isDirectory)

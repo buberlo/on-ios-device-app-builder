@@ -30,12 +30,37 @@ struct ProjectDetailView: View {
                 .disabled(store.project(id: projectID)?.runState.isRunning == true)
                 .accessibilityIdentifier("project.build")
 
-                Button("Install", systemImage: "iphone.and.arrow.forward") {
-                    Task { await store.install(projectID: projectID) }
-                }
-                .disabled(store.project(id: projectID)?.runState.isRunning == true)
-                .accessibilityIdentifier("project.install")
+                installMenu
             }
+        }
+    }
+
+    @ViewBuilder
+    private var installMenu: some View {
+        if store.setup.deploymentDevices.isEmpty {
+            Button("Install", systemImage: "iphone.and.arrow.forward") {
+                Task { await store.install(projectID: projectID) }
+            }
+            .disabled(store.project(id: projectID)?.runState.isRunning == true)
+            .accessibilityIdentifier("project.install")
+        } else {
+            Menu("Install", systemImage: "iphone.and.arrow.forward") {
+                ForEach(store.setup.deploymentDevices) { device in
+                    Button {
+                        store.selectDeploymentDevice(device.id)
+                        Task { await store.install(projectID: projectID, deviceID: device.id) }
+                    } label: {
+                        Label(
+                            "\(device.name) · iOS \(device.operatingSystem)",
+                            systemImage: device.systemImage
+                        )
+                    }
+                    .disabled(!device.isReadyForInstallation)
+                    .accessibilityIdentifier("project.install.\(device.id)")
+                }
+            }
+            .disabled(store.project(id: projectID)?.runState.isRunning == true)
+            .accessibilityIdentifier("project.install")
         }
     }
 

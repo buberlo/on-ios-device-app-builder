@@ -1,3 +1,4 @@
+import BuilderCore
 import Foundation
 
 actor PrototypeBuildPipeline {
@@ -24,7 +25,7 @@ actor PrototypeBuildPipeline {
     func build(
         project: HostProjectRecord,
         at projectURL: URL,
-        installOn device: ConnectedIPhone?,
+        installOn device: DeploymentDevice?,
         progress: @escaping @Sendable (PrototypeBuildProgress) async -> Void
     ) async throws -> PrototypeBuildResult {
         guard let tuistURL = toolLocator.tuistURL() else { throw BuildPipelineError.tuistUnavailable }
@@ -72,7 +73,7 @@ actor PrototypeBuildPipeline {
     func install(
         appURL: URL,
         bundleIdentifier: String,
-        on device: ConnectedIPhone,
+        on device: DeploymentDevice,
         progress: @escaping @Sendable (PrototypeBuildProgress) async -> Void
     ) async throws {
         guard fileManager.fileExists(atPath: appURL.path) else { throw BuildPipelineError.appArtifactMissing }

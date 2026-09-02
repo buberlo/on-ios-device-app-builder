@@ -97,12 +97,40 @@ struct SetupView: View {
                 }
             }
 
-            if let deviceName = store.setup.connectedDeviceName {
-                LabeledContent("Install target") {
-                    Label(deviceName, systemImage: "iphone")
-                        .foregroundStyle(.secondary)
+            if store.setup.deploymentDevices.isEmpty {
+                Text("No paired iPhone or iPad available")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(store.setup.deploymentDevices) { device in
+                    Button {
+                        store.selectDeploymentDevice(device.id)
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: device.systemImage)
+                                .font(.title3)
+                                .foregroundStyle(device.isReadyForInstallation ? .indigo : .orange)
+                                .frame(width: 24)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(device.name)
+                                    .foregroundStyle(.primary)
+                                Text(device.statusDetail)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            if store.setup.selectedDeploymentDeviceID == device.id {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundStyle(.indigo)
+                            } else if !device.isReadyForInstallation {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundStyle(.orange)
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!device.isReadyForInstallation)
+                    .accessibilityIdentifier("setup.device.\(device.id)")
                 }
-                .accessibilityIdentifier("setup.install-target")
             }
         } header: {
             HStack {

@@ -1,12 +1,9 @@
+import BuilderCore
 import Foundation
 
 struct HostDiagnosticsSnapshot: Equatable, Sendable {
     let checks: [HostCheckResult]
-    let iPhones: [ConnectedIPhone]
-
-    var preferredIPhone: ConnectedIPhone? {
-        iPhones.first { $0.developerModeEnabled } ?? iPhones.first
-    }
+    let devices: [DeploymentDevice]
 }
 
 struct HostDiagnostics: Sendable {
@@ -29,10 +26,10 @@ struct HostDiagnostics: Sendable {
         let signingResult = await inspectSigning()
         let tuistResult = await inspectTuist()
         let codexResult = await inspectCodex()
-        let deviceResult = await inspectDevices()
+        let deviceResult = await inspectDevices(xcodeMajorVersion: Self.majorVersion(in: xcodeResult.detail))
         return HostDiagnosticsSnapshot(
             checks: [xcodeResult, signingResult, tuistResult, codexResult, deviceResult.check],
-            iPhones: deviceResult.devices
+            devices: deviceResult.devices
         )
     }
 
@@ -103,7 +100,7 @@ struct HostDiagnostics: Sendable {
         }
     }
 
-    private func inspectDevices() async -> (check: HostCheckResult, devices: [ConnectedIPhone]) {
+    private func inspectDevices(xcodeMajorVersion: Int?) async -> (check: HostCheckResult, devices: [DeploymentDevice]) {
         let jsonURL = fileManager.value.temporaryDirectory
             .appending(path: "builder-host-devices-\(UUID().uuidString).json")
         defer { try? fileManager.value.removeItem(at: jsonURL) }
@@ -116,11 +113,14 @@ struct HostDiagnostics: Sendable {
                     []
                 )
             }
-            let devices = try DeviceListParser.parse(data)
+            let devices = try DeviceListParser.parse(data, xcodeMajorVersion: xcodeMajorVersion)
+            let readyCount = devices.count(where: \.isReadyForInstallation)
             let check = HostCheckResult(
                 kind: .device,
-                status: devices.isEmpty ? .warning : .ready,
-                detail: devices.first.map { "\($0.name) via \($0.connection)" } ?? "No paired iPhone is currently available"
+                status: readyCount == 0 ? .warning : .ready,
+                detail: devices.isEmpty
+                    ? "No paired iPhone or iPad is currently available"
+                    : "\(readyCount) of \(devices.count) paired devices ready"
             )
             return (check, devices)
         } catch {
@@ -145,21 +145,41 @@ struct HostDiagnostics: Sendable {
         }
         return "Apple Development identity available"
     }
+
+    private static func majorVersion(in value: String) -> Int? {
+        value.split(whereSeparator: { !$0.isNumber }).compactMap { Int($0) }.first
+    }
 }
 
 enum DeviceListParser {
-    static func parse(_ data: Data) throws -> [ConnectedIPhone] {
+    static func parse(_ data: Data, xcodeMajorVersion: Int?) throws -> [DeploymentDevice] {
         let document = try JSONDecoder().decode(DeviceDocument.self, from: data)
         return document.result.devices.compactMap { device in
-            guard device.hardwareProperties.deviceType == "iPhone" else { return nil }
-            return ConnectedIPhone(
+            let kind: DeploymentDeviceKind
+            switch device.hardwareProperties.deviceType {
+            case "iPhone": kind = .iPhone
+            case "iPad": kind = .iPad
+            default: return nil
+            }
+            let operatingSystem = device.deviceProperties.osVersionNumber ?? "Unknown iOS"
+            let deviceOSMajor = majorVersion(in: operatingSystem)
+            let isSupported = xcodeMajorVersion.map { xcodeMajor in
+                deviceOSMajor.map { $0 <= xcodeMajor } ?? true
+            } ?? true
+            return DeploymentDevice(
                 id: device.identifier,
-                name: device.deviceProperties.name ?? "Unknown iPhone",
-                operatingSystem: device.deviceProperties.osVersionNumber ?? "Unknown iOS",
+                name: device.deviceProperties.name ?? "Unknown \(kind.displayName)",
+                kind: kind,
+                operatingSystem: operatingSystem,
                 connection: device.connectionProperties.transportType ?? "unknown",
-                developerModeEnabled: device.deviceProperties.developerModeStatus?.lowercased() == "enabled"
+                developerModeEnabled: device.deviceProperties.developerModeStatus?.lowercased() == "enabled",
+                isSupportedByXcode: isSupported
             )
         }
+    }
+
+    private static func majorVersion(in value: String) -> Int? {
+        value.split(whereSeparator: { !$0.isNumber }).compactMap { Int($0) }.first
     }
 }
 

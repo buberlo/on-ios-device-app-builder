@@ -3,7 +3,7 @@ import XCTest
 @testable import BuilderHost
 
 final class DiagnosticsParserTests: XCTestCase {
-    func testParsesOnlyIPhonesFromDeviceCtlDocument() throws {
+    func testParsesIPhoneAndIPadWithXcodeCompatibility() throws {
         let data = Data(
             """
             {
@@ -35,11 +35,13 @@ final class DiagnosticsParserTests: XCTestCase {
             """.utf8
         )
 
-        let devices = try DeviceListParser.parse(data)
+        let devices = try DeviceListParser.parse(data, xcodeMajorVersion: 26)
 
-        XCTAssertEqual(devices.count, 1)
-        XCTAssertEqual(devices.first?.id, "PHONE-ID")
-        XCTAssertEqual(devices.first?.connection, "localNetwork")
-        XCTAssertEqual(devices.first?.developerModeEnabled, true)
+        XCTAssertEqual(devices.count, 2)
+        XCTAssertEqual(devices.map(\.id), ["PHONE-ID", "PAD-ID"])
+        XCTAssertEqual(devices[0].kind, .iPhone)
+        XCTAssertFalse(devices[0].isSupportedByXcode)
+        XCTAssertEqual(devices[1].kind, .iPad)
+        XCTAssertTrue(devices[1].isReadyForInstallation)
     }
 }

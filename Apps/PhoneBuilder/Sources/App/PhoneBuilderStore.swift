@@ -24,7 +24,8 @@ final class PhoneBuilderStore {
         discoveredMacs: [],
         connectedMac: nil,
         checks: [],
-        connectedDeviceName: nil
+        deploymentDevices: [],
+        selectedDeploymentDeviceID: nil
     )
 
     @ObservationIgnored private let configuration: Configuration
@@ -122,7 +123,8 @@ final class PhoneBuilderStore {
         setup.connectionState = .disconnected
         setup.connectedMac = nil
         setup.checks = []
-        setup.connectedDeviceName = nil
+        setup.deploymentDevices = []
+        setup.selectedDeploymentDeviceID = nil
         appendEvent(
             kind: .connection,
             title: "Mac disconnected",
@@ -258,17 +260,37 @@ final class PhoneBuilderStore {
         )
     }
 
-    func install(projectID: UUID) async {
+    func selectDeploymentDevice(_ deviceID: String) {
+        guard setup.deploymentDevices.contains(where: { $0.id == deviceID }) else { return }
+        setup.selectedDeploymentDeviceID = deviceID
+    }
+
+    func install(projectID: UUID, deviceID: String? = nil) async {
+        let targetID = deviceID ?? setup.selectedDeploymentDeviceID
+        guard let targetID,
+              let device = setup.deploymentDevices.first(where: { $0.id == targetID }) else {
+            alert = AppAlert(title: "Choose an install target", message: "Open Setup and select an available iPhone or iPad.")
+            return
+        }
+        guard device.isReadyForInstallation else {
+            alert = AppAlert(title: "Device not ready", message: device.statusDetail)
+            return
+        }
+        setup.selectedDeploymentDeviceID = targetID
+
         if configuration == .live {
-            send(.installProject(projectID), errorTitle: "Could not start installation")
+            send(
+                .installProject(InstallProjectRequest(projectID: projectID, deviceID: targetID)),
+                errorTitle: "Could not start installation"
+            )
             return
         }
 
         await runDemoPhases(
             projectID: projectID,
             phases: [
-                (.installing, .install, "Installing", "Sending the signed app to Konrad’s iPhone", 0.8),
-                (.succeeded, .success, "App installed", "The latest build is now on the iPhone", 1.0),
+                (.installing, .install, "Installing", "Sending the signed app to \(device.name)", 0.8),
+                (.succeeded, .success, "App installed", "The latest build is now on \(device.name)", 1.0),
             ]
         )
     }
@@ -374,7 +396,15 @@ final class PhoneBuilderStore {
         )
         setup.connectionState = .connected
         setup.checks = snapshot.checks.map(AppSetupCheck.init)
-        setup.connectedDeviceName = snapshot.connectedDeviceName
+        let previousSelection = setup.selectedDeploymentDeviceID
+        setup.deploymentDevices = snapshot.deploymentDevices.map(AppDeploymentDevice.init)
+        if let previousSelection,
+           setup.deploymentDevices.contains(where: { $0.id == previousSelection }) {
+            setup.selectedDeploymentDeviceID = previousSelection
+        } else {
+            setup.selectedDeploymentDeviceID = setup.deploymentDevices.first(where: \.isReadyForInstallation)?.id
+                ?? setup.deploymentDevices.first?.id
+        }
         projects = snapshot.projects.map(AppProject.init).sorted { $0.updatedAt > $1.updatedAt }
     }
 
@@ -473,19 +503,22 @@ final class PhoneBuilderStore {
             discoveredMacs: [AppMac(id: "ui-test-mac", name: "Test Mac", detail: "Nearby Builder Host")],
             connectedMac: nil,
             checks: [],
-            connectedDeviceName: nil
+            deploymentDevices: [],
+            selectedDeploymentDeviceID: nil
         )
     }
 
     private func bootstrapDemo() {
         let projectID = UUID(uuidString: "F3ACDE2A-44AB-47C1-8C5F-6774043F05A2")!
         let mac = AppMac(id: "demo-mac", name: "Konrad’s MacBook", detail: "Nearby Builder Host")
+        let demoDevices = Self.demoDevices
         setup = AppSetupState(
             connectionState: .connected,
             discoveredMacs: [mac],
             connectedMac: mac,
             checks: Self.readyChecks,
-            connectedDeviceName: "Konrad’s iPhone"
+            deploymentDevices: demoDevices,
+            selectedDeploymentDeviceID: demoDevices.first?.id
         )
         projects = [
             AppProject(
@@ -524,7 +557,8 @@ final class PhoneBuilderStore {
         setup.connectionState = .connected
         setup.connectedMac = mac
         setup.checks = Self.readyChecks
-        setup.connectedDeviceName = "Konrad’s iPhone"
+        setup.deploymentDevices = Self.demoDevices
+        setup.selectedDeploymentDeviceID = Self.demoDevices.first?.id
         appendEvent(
             kind: .connection,
             title: "Mac connected",
@@ -536,7 +570,28 @@ final class PhoneBuilderStore {
         AppSetupCheck(id: "xcode", title: "Xcode 26", detail: "Installed and selected", state: .ready),
         AppSetupCheck(id: "signing", title: "Apple signing", detail: "Development certificate available", state: .ready),
         AppSetupCheck(id: "codex", title: "Codex CLI", detail: "Demo provider ready", state: .warning),
-        AppSetupCheck(id: "device", title: "Physical iPhone", detail: "Paired over Wi-Fi", state: .ready),
+        AppSetupCheck(id: "device", title: "Deployment devices", detail: "iPad and iPhone paired over Wi-Fi", state: .ready),
+    ]
+
+    private static let demoDevices = [
+        AppDeploymentDevice(
+            id: "demo-ipad",
+            name: "Konrad’s iPad",
+            kind: .iPad,
+            operatingSystem: "26.6",
+            connection: "Wi-Fi",
+            developerModeEnabled: true,
+            isSupportedByXcode: true
+        ),
+        AppDeploymentDevice(
+            id: "demo-iphone",
+            name: "Konrad’s iPhone",
+            kind: .iPhone,
+            operatingSystem: "27.0",
+            connection: "Wi-Fi",
+            developerModeEnabled: true,
+            isSupportedByXcode: false
+        ),
     ]
 }
 
@@ -612,6 +667,20 @@ private extension AppSetupCheck {
         case .unavailable: .unavailable
         }
         self.init(id: check.id, title: check.title, detail: check.detail, state: state)
+    }
+}
+
+private extension AppDeploymentDevice {
+    init(_ device: DeploymentDevice) {
+        self.init(
+            id: device.id,
+            name: device.name,
+            kind: device.kind == .iPad ? .iPad : .iPhone,
+            operatingSystem: device.operatingSystem,
+            connection: device.connection,
+            developerModeEnabled: device.developerModeEnabled,
+            isSupportedByXcode: device.isSupportedByXcode
+        )
     }
 }
 

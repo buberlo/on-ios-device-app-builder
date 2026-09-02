@@ -140,12 +140,46 @@ struct AppSetupCheck: Identifiable, Hashable, Sendable {
     let state: AppCheckState
 }
 
+struct AppDeploymentDevice: Identifiable, Hashable, Sendable {
+    enum Kind: String, Hashable, Sendable {
+        case iPhone
+        case iPad
+    }
+
+    let id: String
+    let name: String
+    let kind: Kind
+    let operatingSystem: String
+    let connection: String
+    let developerModeEnabled: Bool
+    let isSupportedByXcode: Bool
+
+    var isReadyForInstallation: Bool {
+        developerModeEnabled && isSupportedByXcode
+    }
+
+    var systemImage: String {
+        kind == .iPad ? "ipad" : "iphone"
+    }
+
+    var statusDetail: String {
+        if !developerModeEnabled { return "Developer Mode is disabled" }
+        if !isSupportedByXcode { return "Requires a matching newer Xcode" }
+        return "iOS \(operatingSystem) · \(connection)"
+    }
+}
+
 struct AppSetupState: Hashable, Sendable {
     var connectionState: AppConnectionState
     var discoveredMacs: [AppMac]
     var connectedMac: AppMac?
     var checks: [AppSetupCheck]
-    var connectedDeviceName: String?
+    var deploymentDevices: [AppDeploymentDevice]
+    var selectedDeploymentDeviceID: String?
+
+    var selectedDeploymentDevice: AppDeploymentDevice? {
+        deploymentDevices.first { $0.id == selectedDeploymentDeviceID }
+    }
 
     var readyCount: Int {
         checks.count(where: { $0.state == .ready })

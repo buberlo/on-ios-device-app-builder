@@ -9,7 +9,7 @@ final class HostStore {
     let nearbyHost: NearbyBuilderHost
 
     private(set) var checks: [HostCheckResult] = []
-    private(set) var iPhones: [ConnectedIPhone] = []
+    private(set) var devices: [DeploymentDevice] = []
     private(set) var projects: [HostProjectRecord] = []
     private(set) var activities: [HostActivity] = []
     private(set) var isRefreshing = false
@@ -67,7 +67,7 @@ final class HostStore {
     var statusTitle: String {
         switch nearbyHost.connectionState {
         case .idle: "Stopped"
-        case .advertising: "Ready for iPhone"
+        case .advertising: "Ready for iPhone or iPad"
         case .connecting: "Connecting"
         case .connected: "Connected"
         case .disconnected: "Disconnected"
@@ -104,7 +104,7 @@ final class HostStore {
         async let storedProjects = loadProjects()
         let (diagnosticSnapshot, loadedProjects) = await (snapshot, storedProjects)
         checks = diagnosticSnapshot.checks
-        iPhones = diagnosticSnapshot.iPhones
+        devices = diagnosticSnapshot.devices
         projects = loadedProjects
     }
 
@@ -129,9 +129,9 @@ final class HostStore {
         case let .sendPrompt(request):
             planPrompt(request, for: peer)
         case let .buildProject(projectID):
-            buildProject(projectID, installAfterBuild: false, for: peer)
-        case let .installProject(projectID):
-            installProject(projectID, for: peer)
+            buildProject(projectID, installOn: nil, for: peer)
+        case let .installProject(request):
+            installProject(request, for: peer)
         case let .cancelRun(projectID):
             cancelRun(projectID, for: peer)
         }
@@ -222,17 +222,11 @@ final class HostStore {
         runTasks[request.projectID] = task
     }
 
-    private func buildProject(_ projectID: UUID, installAfterBuild: Bool, for peer: NearbyPeer) {
+    private func buildProject(_ projectID: UUID, installOn selectedDevice: DeploymentDevice?, for peer: NearbyPeer) {
         guard runTasks[projectID] == nil else {
             sendError(code: "run_active", message: "This project already has an active run.", projectID: projectID, to: peer)
             return
         }
-        let selectedDevice = installAfterBuild ? iPhones.first(where: \.developerModeEnabled) ?? iPhones.first : nil
-        if installAfterBuild, selectedDevice == nil {
-            sendError(code: "device_unavailable", message: "Connect and unlock a paired iPhone first.", projectID: projectID, to: peer)
-            return
-        }
-
         let task = Task { [weak self] in
             guard let self else { return }
             defer { self.runTasks[projectID] = nil }
@@ -273,22 +267,50 @@ final class HostStore {
         runTasks[projectID] = task
     }
 
-    private func installProject(_ projectID: UUID, for peer: NearbyPeer) {
-        guard let record = projects.first(where: { $0.id == projectID }),
-              let path = record.lastBuiltAppPath,
-              FileManager.default.fileExists(atPath: path),
-              let device = iPhones.first(where: \.developerModeEnabled) ?? iPhones.first else {
-            buildProject(projectID, installAfterBuild: true, for: peer)
+    private func installProject(_ request: InstallProjectRequest, for peer: NearbyPeer) {
+        guard let device = devices.first(where: { $0.id == request.deviceID }) else {
+            sendError(
+                code: "device_unavailable",
+                message: "The selected device is unavailable. Refresh Setup and choose it again.",
+                projectID: request.projectID,
+                to: peer
+            )
             return
         }
-        guard runTasks[projectID] == nil else {
-            sendError(code: "run_active", message: "This project already has an active run.", projectID: projectID, to: peer)
+        guard device.developerModeEnabled else {
+            sendError(
+                code: "developer_mode_disabled",
+                message: "Enable Developer Mode on \(device.name), then refresh Setup.",
+                projectID: request.projectID,
+                to: peer
+            )
+            return
+        }
+        guard device.isSupportedByXcode else {
+            sendError(
+                code: "xcode_device_mismatch",
+                message: "\(device.name) runs iOS \(device.operatingSystem), which requires a matching newer Xcode version.",
+                projectID: request.projectID,
+                to: peer
+            )
+            return
+        }
+        guard let record = projects.first(where: { $0.id == request.projectID }) else {
+            sendError(code: "project_unavailable", message: "The project is unavailable on this Mac.", projectID: request.projectID, to: peer)
+            return
+        }
+        guard let path = record.lastBuiltAppPath, FileManager.default.fileExists(atPath: path) else {
+            buildProject(request.projectID, installOn: device, for: peer)
+            return
+        }
+        guard runTasks[request.projectID] == nil else {
+            sendError(code: "run_active", message: "This project already has an active run.", projectID: request.projectID, to: peer)
             return
         }
 
         let task = Task { [weak self] in
             guard let self else { return }
-            defer { self.runTasks[projectID] = nil }
+            defer { self.runTasks[request.projectID] = nil }
             do {
                 try await pipeline.install(
                     appURL: URL(fileURLWithPath: path),
@@ -296,18 +318,23 @@ final class HostStore {
                     on: device
                 ) { [weak self] progress in
                     await MainActor.run {
-                        self?.publish(progress, projectID: projectID, peer: peer)
+                        self?.publish(progress, projectID: request.projectID, peer: peer)
                     }
                 }
-                sendRunState(projectID: projectID, state: .succeeded, message: "Installed on \(device.name)", to: peer)
+                var updatedRecord = record
+                updatedRecord.status = .succeeded
+                updatedRecord.updatedAt = Date()
+                try await workspace.update(updatedRecord)
+                replaceProject(updatedRecord)
+                sendRunState(projectID: request.projectID, state: .succeeded, message: "Installed on \(device.name)", to: peer)
                 addActivity(.success, "Installed \(record.name) on \(device.name)")
             } catch is CancellationError {
-                markCancelled(projectID, peer: peer)
+                markCancelled(request.projectID, peer: peer)
             } catch {
-                markFailed(projectID, error: error, peer: peer)
+                markFailed(request.projectID, error: error, peer: peer)
             }
         }
-        runTasks[projectID] = task
+        runTasks[request.projectID] = task
     }
 
     private func cancelRun(_ projectID: UUID, for peer: NearbyPeer) {
@@ -340,7 +367,7 @@ final class HostStore {
         let snapshot = HostSnapshot(
             hostName: Host.current().localizedName ?? ProcessInfo.processInfo.hostName,
             checks: checks.map(\.setupCheck),
-            connectedDeviceName: iPhones.first?.name,
+            deploymentDevices: devices,
             projects: projects.map(\.summary)
         )
         send(.snapshot(snapshot), to: peer)
@@ -406,7 +433,7 @@ final class HostStore {
         Demo plan ready:
         1. Keep the existing signed SwiftUI prototype structure.
         2. Use “\(String(prompt.prefix(180)))” as the prototype brief.
-        3. Build it on this Mac and install it on the paired iPhone.
+        3. Build it on this Mac and install it on the selected iPhone or iPad.
 
         Live Codex editing was unavailable for this run (\(String(failure.localizedDescription.prefix(160)))).
         """

@@ -33,7 +33,17 @@ final class WireProtocolTests: XCTestCase {
             checks: [
                 SetupCheck(id: "xcode", title: "Xcode", detail: "26.0", status: .ready)
             ],
-            connectedDeviceName: "iPhone",
+            deploymentDevices: [
+                DeploymentDevice(
+                    id: "PAD-ID",
+                    name: "Studio iPad",
+                    kind: .iPad,
+                    operatingSystem: "26.6",
+                    connection: "localNetwork",
+                    developerModeEnabled: true,
+                    isSupportedByXcode: true
+                )
+            ],
             projects: [project]
         )
         let event = HostEvent.snapshot(snapshot)
@@ -42,6 +52,18 @@ final class WireProtocolTests: XCTestCase {
         let decoded = try WireCodec.decode(HostEvent.self, from: data)
 
         XCTAssertEqual(decoded.payload, event)
+    }
+
+    func testInstallRequestRoundTripIncludesSelectedDevice() throws {
+        let projectID = UUID(uuidString: "B6E9909F-2DF4-44CB-8935-C4345E4157A2")!
+        let command = ClientCommand.installProject(
+            InstallProjectRequest(projectID: projectID, deviceID: "PAD-ID")
+        )
+
+        let data = try WireCodec.encode(command)
+        let decoded = try WireCodec.decode(ClientCommand.self, from: data)
+
+        XCTAssertEqual(decoded.payload, command)
     }
 
     func testUnsupportedVersionIsRejected() throws {

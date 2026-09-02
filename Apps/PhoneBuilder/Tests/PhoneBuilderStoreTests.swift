@@ -63,7 +63,39 @@ struct PhoneBuilderStoreTests {
         #expect(store.setup.connectionState == .connected)
         #expect(store.setup.connectedMac?.name == "Test Mac")
         #expect(store.setup.checks.count == 4)
+        #expect(store.setup.deploymentDevices.count == 2)
+        #expect(store.setup.selectedDeploymentDevice?.kind == .iPad)
         #expect(store.setup.isReadyToBuild)
+    }
+
+    @Test("Install uses the explicitly selected ready device")
+    func installTargetSelection() async throws {
+        let store = makeProjectStore()
+        let mac = try #require(store.setup.discoveredMacs.first)
+        store.connect(to: mac)
+        let projectID = try #require(store.projects.first?.id)
+        let iPad = try #require(store.setup.deploymentDevices.first(where: { $0.kind == .iPad }))
+
+        await store.install(projectID: projectID, deviceID: iPad.id)
+
+        #expect(store.setup.selectedDeploymentDeviceID == iPad.id)
+        #expect(store.events(for: projectID).last?.detail.contains(iPad.name) == true)
+        #expect(store.project(id: projectID)?.runState == .succeeded)
+    }
+
+    @Test("Install rejects a device that needs newer Xcode")
+    func rejectsUnsupportedDevice() async throws {
+        let store = makeProjectStore()
+        let mac = try #require(store.setup.discoveredMacs.first)
+        store.connect(to: mac)
+        let projectID = try #require(store.projects.first?.id)
+        let iPhone = try #require(store.setup.deploymentDevices.first(where: { $0.kind == .iPhone }))
+
+        await store.install(projectID: projectID, deviceID: iPhone.id)
+
+        #expect(store.alert?.title == "Device not ready")
+        #expect(store.alert?.message.contains("newer Xcode") == true)
+        #expect(store.project(id: projectID)?.runState == .idle)
     }
 
     private func makeProjectStore() -> PhoneBuilderStore {

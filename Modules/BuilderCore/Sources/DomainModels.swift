@@ -155,24 +155,63 @@ public struct BuildEvent: Codable, Hashable, Identifiable, Sendable {
     }
 }
 
+public enum DeploymentDeviceKind: String, Codable, Hashable, Sendable {
+    case iPhone
+    case iPad
+
+    public var displayName: String { rawValue }
+}
+
+public struct DeploymentDevice: Codable, Hashable, Identifiable, Sendable {
+    public let id: String
+    public let name: String
+    public let kind: DeploymentDeviceKind
+    public let operatingSystem: String
+    public let connection: String
+    public let developerModeEnabled: Bool
+    public let isSupportedByXcode: Bool
+
+    public init(
+        id: String,
+        name: String,
+        kind: DeploymentDeviceKind,
+        operatingSystem: String,
+        connection: String,
+        developerModeEnabled: Bool,
+        isSupportedByXcode: Bool
+    ) {
+        self.id = id
+        self.name = name
+        self.kind = kind
+        self.operatingSystem = operatingSystem
+        self.connection = connection
+        self.developerModeEnabled = developerModeEnabled
+        self.isSupportedByXcode = isSupportedByXcode
+    }
+
+    public var isReadyForInstallation: Bool {
+        developerModeEnabled && isSupportedByXcode
+    }
+}
+
 public struct HostSnapshot: Codable, Hashable, Sendable {
     public let hostName: String
     public let checkedAt: Date
     public let checks: [SetupCheck]
-    public let connectedDeviceName: String?
+    public let deploymentDevices: [DeploymentDevice]
     public let projects: [ProjectSummary]
 
     public init(
         hostName: String,
         checkedAt: Date = Date(),
         checks: [SetupCheck],
-        connectedDeviceName: String? = nil,
+        deploymentDevices: [DeploymentDevice] = [],
         projects: [ProjectSummary] = []
     ) {
         self.hostName = hostName
         self.checkedAt = checkedAt
         self.checks = checks
-        self.connectedDeviceName = connectedDeviceName
+        self.deploymentDevices = deploymentDevices
         self.projects = projects
     }
 
@@ -182,6 +221,16 @@ public struct HostSnapshot: Codable, Hashable, Sendable {
 
     public var blockingChecks: [SetupCheck] {
         checks.filter(\.isBlocking)
+    }
+}
+
+public struct InstallProjectRequest: Codable, Hashable, Sendable {
+    public let projectID: UUID
+    public let deviceID: String
+
+    public init(projectID: UUID, deviceID: String) {
+        self.projectID = projectID
+        self.deviceID = deviceID
     }
 }
 

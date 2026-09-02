@@ -5,7 +5,7 @@ public enum ClientCommand: Codable, Hashable, Sendable {
     case createProject(CreateProjectRequest)
     case sendPrompt(PromptRequest)
     case buildProject(UUID)
-    case installProject(UUID)
+    case installProject(InstallProjectRequest)
     case cancelRun(UUID)
 }
 
@@ -19,7 +19,7 @@ public enum HostEvent: Codable, Hashable, Sendable {
 }
 
 public enum BuilderWireProtocol {
-    public static let version = 1
+    public static let version = 2
     public static let serviceType = "phonebuilder"
 }
 
