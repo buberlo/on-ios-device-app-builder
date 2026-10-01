@@ -14,7 +14,7 @@ final class PhoneBuilderUITests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts["Xcode 26"].waitForExistence(timeout: 2))
         let installTarget = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "label CONTAINS %@", "Konrad’s iPhone"))
+            .matching(NSPredicate(format: "label CONTAINS %@", "Demo iPhone"))
             .firstMatch
         XCTAssertTrue(installTarget.waitForExistence(timeout: 2))
 
@@ -116,14 +116,14 @@ final class PhoneBuilderUITests: XCTestCase {
 
         app.buttons["project.install"].tap()
         let installOnIPad = app.buttons
-            .matching(NSPredicate(format: "label CONTAINS %@", "Konrad’s iPad"))
+            .matching(NSPredicate(format: "label CONTAINS %@", "Demo iPad"))
             .firstMatch
         XCTAssertTrue(installOnIPad.waitForExistence(timeout: 3))
         installOnIPad.tap()
 
         app.buttons["Activity"].firstMatch.tap()
         XCTAssertTrue(app.staticTexts["App installed"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.staticTexts["The latest build is now on Konrad’s iPad"].exists)
+        XCTAssertTrue(app.staticTexts["The latest build is now on Demo iPad"].exists)
     }
 
     @MainActor

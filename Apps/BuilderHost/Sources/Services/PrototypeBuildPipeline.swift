@@ -6,14 +6,14 @@ actor PrototypeBuildPipeline {
     private let generator: PrototypeGenerator
     private let toolLocator: ToolLocator
     private let fileManager: FileManager
-    private let developmentTeamID: String
+    private let developmentTeamID: String?
 
     init(
         runner: AllowlistedCommandRunner,
         generator: PrototypeGenerator = PrototypeGenerator(),
         toolLocator: ToolLocator = ToolLocator(),
         fileManager: FileManager = .default,
-        developmentTeamID: String = "K5TW9AU245"
+        developmentTeamID: String? = PrototypeBuildPipeline.configuredDevelopmentTeamID()
     ) {
         self.runner = runner
         self.generator = generator
@@ -29,6 +29,7 @@ actor PrototypeBuildPipeline {
         progress: @escaping @Sendable (PrototypeBuildProgress) async -> Void
     ) async throws -> PrototypeBuildResult {
         guard let tuistURL = toolLocator.tuistURL() else { throw BuildPipelineError.tuistUnavailable }
+        guard let teamID = developmentTeamID else { throw BuildPipelineError.developmentTeamMissing }
 
         await progress(.init(phase: .preparing, message: "Preparing controlled workspace", fraction: 0.05))
         try Task.checkCancellation()
@@ -49,7 +50,7 @@ actor PrototypeBuildPipeline {
                 executable: tuistURL,
                 directory: projectURL,
                 scheme: PrototypeGenerator.schemeName,
-                teamID: developmentTeamID
+                teamID: teamID
             )
         ) { line in
             guard let message = Self.progressMessage(from: line, phase: .building) else { return }
@@ -104,6 +105,25 @@ actor PrototypeBuildPipeline {
             throw BuildPipelineError.launchFailed(Self.safeSummary(launch.text))
         }
         await progress(.init(phase: .finished, message: "Installed and launched on \(device.name)", fraction: 1))
+    }
+
+    /// Resolves the Apple Developer Team ID used to sign generated prototypes.
+    /// Order: `BUILDER_DEVELOPMENT_TEAM` environment variable, then the
+    /// `BuilderDevelopmentTeam` Info.plist value (expanded from `DEVELOPMENT_TEAM`
+    /// in Config/Signing.local.xcconfig at build time).
+    static func configuredDevelopmentTeamID(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        infoDictionary: [String: Any]? = Bundle.main.infoDictionary
+    ) -> String? {
+        let candidates = [
+            environment["BUILDER_DEVELOPMENT_TEAM"],
+            infoDictionary?["BuilderDevelopmentTeam"] as? String,
+        ]
+        for candidate in candidates {
+            let value = candidate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !value.isEmpty, !value.hasPrefix("$(") { return value }
+        }
+        return nil
     }
 
     func cancel() async {
@@ -174,6 +194,7 @@ actor PrototypeBuildPipeline {
 
 enum BuildPipelineError: LocalizedError, Equatable {
     case tuistUnavailable
+    case developmentTeamMissing
     case generationFailed(String)
     case buildFailed(String)
     case appArtifactMissing
@@ -183,6 +204,8 @@ enum BuildPipelineError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .tuistUnavailable: "Tuist is not installed in an approved location."
+        case .developmentTeamMissing:
+            "No Apple Developer Team ID configured. Set DEVELOPMENT_TEAM in Config/Signing.local.xcconfig or BUILDER_DEVELOPMENT_TEAM."
         case let .generationFailed(message): "Project generation failed: \(message)"
         case let .buildFailed(message): "Build failed: \(message)"
         case .appArtifactMissing: "The build completed without producing an iOS app."

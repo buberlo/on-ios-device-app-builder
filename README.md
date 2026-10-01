@@ -4,6 +4,13 @@ Describe and steer a SwiftUI prototype from an iPhone or iPad while a trusted Ma
 
 The phone is the control surface. The Mac remains the build machine and the security boundary.
 
+> [!WARNING]
+> **MVP – use on trusted networks only.** Sessions are encrypted, but there is no pairing or peer authentication yet: any nearby device that connects to Builder Host can send build and Codex requests. See [MVP limits](#mvp-limits).
+
+## Screenshots and demo video
+
+_Coming soon: screenshots of Phone Builder and Builder Host, plus a short demo video of a prompt-to-install run._
+
 ## MVP flow
 
 1. Start **Builder Host** from the Mac menu bar.
@@ -21,11 +28,24 @@ The apps also include a deterministic demo mode so navigation and the complete p
 - an Apple Development certificate and signing team
 - [Tuist](https://tuist.dev) 4.205 or newer
 - a paired iPhone or iPad with Developer Mode enabled
-- optional: [Codex CLI](https://developers.openai.com/codex/noninteractive), signed in locally with ChatGPT or an API key
+- optional: [Codex CLI](https://developers.openai.com/codex/noninteractive), signed in locally with `codex login` (ChatGPT) or `codex login --with-api-key`
 
-No OpenAI or Apple credential is sent to the mobile app. Codex runs on the Mac and reuses its local authentication.
+No OpenAI or Apple credential is sent to the mobile app. Codex runs on the Mac and reuses its stored local login. Builder Host passes only a minimal environment to child processes, so an `OPENAI_API_KEY` exported in your shell is **not** forwarded; store the key with `codex login --with-api-key` instead.
 
 ## Build and run
+
+### Signing configuration
+
+Simulator builds need no signing setup. For device builds and for signing the generated prototypes, set your Apple Developer Team ID locally:
+
+```sh
+cp Config/Signing.local.xcconfig.example Config/Signing.local.xcconfig
+# edit DEVELOPMENT_TEAM in Config/Signing.local.xcconfig (gitignored)
+```
+
+Builder Host reads the Team ID from its Info.plist (expanded from `DEVELOPMENT_TEAM`). To override it at runtime, set `BUILDER_DEVELOPMENT_TEAM`. Without a Team ID, prototype builds stop with a clear setup error.
+
+### Build
 
 ```sh
 brew install --cask tuist
@@ -44,6 +64,16 @@ Start or stop the menu-bar host with:
 ```
 
 Open `OnDeviceAppBuilder.xcworkspace` for signing and physical-device runs.
+
+### Demo mode (no Mac host or Codex needed)
+
+Phone Builder ships a deterministic demo mode with a simulated Mac, paired devices, and the full project/chat/build/install timeline. Run it in the iOS Simulator by adding the launch argument `-demo-mode` (Xcode: Product › Scheme › Edit Scheme › Run › Arguments), or:
+
+```sh
+xcrun simctl launch booted dev.buberlo.ondeviceappbuilder.ios -demo-mode
+```
+
+Demo mode never invokes Codex or Xcode; it exercises UI and state only.
 
 ## Architecture and safety
 
@@ -67,4 +97,8 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the trust boundary and firs
 - SwiftUI prototype template only
 - one trusted local host and one active run at a time
 - no App Store submission, TestFlight upload, or automatic certificate creation
-- local-network encryption is implemented; durable device identity/pinning is a post-MVP hardening item
+- local-network encryption is implemented; pairing, peer authentication, and durable device identity/pinning are post-MVP hardening items, so use it only on trusted networks
+
+## License
+
+[MIT](LICENSE) © 2026 Konrad Kern

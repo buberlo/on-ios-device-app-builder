@@ -1,16 +1,22 @@
 import ProjectDescription
 
 let sharedSettings: SettingsDictionary = [
-    "DEVELOPMENT_TEAM": "K5TW9AU245",
     "SWIFT_VERSION": "6.0",
     "SWIFT_STRICT_CONCURRENCY": "complete",
     "ENABLE_USER_SCRIPT_SANDBOXING": "YES",
 ]
 
+// Signing: DEVELOPMENT_TEAM comes from Config/Signing.xcconfig, which optionally
+// includes the untracked Config/Signing.local.xcconfig (see Signing.local.xcconfig.example).
+let signingConfigurations: [Configuration] = [
+    .debug(name: .debug, xcconfig: "Config/Signing.xcconfig"),
+    .release(name: .release, xcconfig: "Config/Signing.xcconfig"),
+]
+
 let project = Project(
     name: "OnDeviceAppBuilder",
     organizationName: "buberlo",
-    settings: .settings(base: sharedSettings),
+    settings: .settings(base: sharedSettings, configurations: signingConfigurations),
     targets: [
         .target(
             name: "BuilderCore",
@@ -80,6 +86,7 @@ let project = Project(
             infoPlist: .extendingDefault(with: [
                 "CFBundleDisplayName": "Builder Host",
                 "LSUIElement": true,
+                "BuilderDevelopmentTeam": "$(DEVELOPMENT_TEAM)",
                 "NSLocalNetworkUsageDescription": "Builder Host accepts encrypted build requests from your paired iPhone or iPad.",
                 "NSBonjourServices": ["_phonebuilder._tcp"],
             ]),

@@ -572,7 +572,7 @@ final class PhoneBuilderStore {
 
     private func bootstrapDemo() {
         let projectID = UUID(uuidString: "F3ACDE2A-44AB-47C1-8C5F-6774043F05A2")!
-        let mac = AppMac(id: "demo-mac", name: "Konrad’s MacBook", detail: "Nearby Builder Host")
+        let mac = AppMac(id: "demo-mac", name: "Demo MacBook", detail: "Nearby Builder Host")
         let demoDevices = Self.demoDevices
         setup = AppSetupState(
             connectionState: .connected,
@@ -638,7 +638,7 @@ final class PhoneBuilderStore {
     private static let demoDevices = [
         AppDeploymentDevice(
             id: "demo-ipad",
-            name: "Konrad’s iPad",
+            name: "Demo iPad",
             kind: .iPad,
             operatingSystem: "26.6",
             connection: "Wi-Fi",
@@ -647,7 +647,7 @@ final class PhoneBuilderStore {
         ),
         AppDeploymentDevice(
             id: "demo-iphone",
-            name: "Konrad’s iPhone",
+            name: "Demo iPhone",
             kind: .iPhone,
             operatingSystem: "27.0",
             connection: "Wi-Fi",

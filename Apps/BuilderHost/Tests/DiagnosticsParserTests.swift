@@ -12,7 +12,7 @@ final class DiagnosticsParserTests: XCTestCase {
                   {
                     "identifier": "PHONE-ID",
                     "deviceProperties": {
-                      "name": "Konrad's iPhone",
+                      "name": "Demo iPhone",
                       "osVersionNumber": "27.0",
                       "developerModeStatus": "enabled"
                     },

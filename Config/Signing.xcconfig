@@ -1,0 +1,6 @@
+// Shared signing configuration. Do not put your Team ID here.
+// Copy Signing.local.xcconfig.example to Signing.local.xcconfig (gitignored)
+// and set DEVELOPMENT_TEAM there. Simulator builds work without it.
+DEVELOPMENT_TEAM =
+
+#include? "Signing.local.xcconfig"

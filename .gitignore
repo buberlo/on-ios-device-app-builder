@@ -14,3 +14,4 @@ xcuserdata/
 .swiftpm/
 build-artifacts/
 local-state/
+Config/Signing.local.xcconfig
